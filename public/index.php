@@ -78,13 +78,16 @@ send_security_headers();
                 <nav class="navbar container" data-navbar>
                     <ul class="navbar-list">
                         <li>
-                            <a href="#" class="navbar-link" data-nav-link>Home</a>
+                            <a href="#" class="navbar-link" data-nav-link>Trang chủ</a>
                         </li>
                         <li>
-                            <a href="#analyze" class="navbar-link" data-nav-link>Analyze</a>
+                            <a href="#analyze" class="navbar-link" data-nav-link>Phân tích nhãn rủi ro</a>
                         </li>
                         <li>
-                            <a href="#contact" class="navbar-link" data-nav-link>Contact</a>
+                            <a href="/answer.html" class="navbar-link" data-nav-link>Trả lời IUH</a>
+                        </li>
+                        <li>
+                            <a href="#contact" class="navbar-link" data-nav-link>Liên hệ</a>
                         </li>
                     </ul>
                 </nav>

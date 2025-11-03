@@ -1,4 +1,5 @@
 <?php
+//lib/kb.php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/config.php';
 
@@ -274,55 +275,140 @@ function kb_search_chunks_like(PDO $pdo, string $q, int $k = 6, array $opts = []
 /**
  * Truy vấn chính dùng FULLTEXT. Nếu gặp lỗi 1191/FULLTEXT sẽ tự động fallback sang LIKE.
  */
+function kb_has_fulltext(PDO $pdo, string $table, array $cols): bool
+{
+    if (!$cols) return false;
+    $in  = implode(',', array_fill(0, count($cols), '?'));
+    $sql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME   = ?
+              AND INDEX_TYPE   = 'FULLTEXT'
+              AND COLUMN_NAME IN ($in)";
+    $st = $pdo->prepare($sql);
+    $params = array_merge([$table], $cols);
+    $st->execute($params);
+    // chỉ cần có FULLTEXT cho *ít nhất một* cột trong nhóm là đủ dùng ở dưới
+    return ((int)$st->fetchColumn()) > 0;
+}
+
 function kb_search_chunks_v2(PDO $pdo, string $q, int $k = 6, array $opts = []): array
 {
     $trustMin = (float)($opts['trust_min'] ?? 0.9);
     $days     = (int)($opts['days'] ?? 730);
     $source   = $opts['source'] ?? 'IUH Official';
     $wild     = ($source === '%') ? 1 : 0;
+    $k        = max(1, min(50, (int)$k));
 
-    $sql = "
+    // Tính mốc thời gian tại PHP để tránh bind trong INTERVAL
+    $since = date('Y-m-d H:i:s', time() - $days * 86400);
+
+    // Có FULLTEXT cho title không?
+    $hasFTTitle = kb_has_fulltext($pdo, 'kb_posts', ['title', 'message_clean']);
+
+    // Phần score cho title: nếu có FULLTEXT dùng MATCH, nếu không dùng LIKE cộng điểm nhẹ
+    $titleScoreFT   = "COALESCE(MATCH(kp.title) AGAINST (:qq IN NATURAL LANGUAGE MODE), 0) * 1.2";
+    $titleScoreLike = "(CASE WHEN kp.title LIKE :ql THEN 0.3 ELSE 0 END)";
+
+    // ===== 1) FULLTEXT NATURAL =====
+    $baseScore = "
+        (
+          " . ($hasFTTitle ? $titleScoreFT : $titleScoreLike) . " +
+          COALESCE(MATCH(kc.text, kc.text_clean) AGAINST (:qq IN NATURAL LANGUAGE MODE), 0) * 1.0 +
+          (1.0/(1.0 + IFNULL(TIMESTAMPDIFF(DAY,kp.created_time,NOW()),99999)/90))
+        ) AS score
+    ";
+
+    $sqlFT = "
       SELECT
         kc.id AS chunk_id, kc.post_id, kc.chunk_idx,
         kc.text, kc.text_clean,
         kp.permalink_url, kp.created_time, kp.title,
         ks.source_name,
         (COALESCE(kp.trust_level,1.0) * COALESCE(kc.trust_level,1.0)) AS trust,
-        (
-          /* điểm ngữ nghĩa */
-          COALESCE(MATCH(kp.title) AGAINST (:qq IN NATURAL LANGUAGE MODE), 0) * 1.2 +
-          COALESCE(MATCH(kc.text, kc.text_clean) AGAINST (:qq IN NATURAL LANGUAGE MODE), 0) * 1.0 +
-          /* ưu tiên bài mới */
-          (1.0/(1.0 + IFNULL(TIMESTAMPDIFF(DAY,kp.created_time,NOW()),99999)/90))
-        ) AS score
+        $baseScore
       FROM kb_chunks kc
       JOIN kb_posts   kp ON kp.id = kc.post_id
       JOIN kb_sources ks ON ks.id = kp.source_id
       WHERE (:wild=1 OR ks.source_name = :src)
         AND COALESCE(kp.trust_level,1.0) >= :t
         AND COALESCE(kc.trust_level,1.0) >= :t
-        AND (kp.created_time IS NULL OR kp.created_time >= (NOW() - INTERVAL :days DAY))
+        AND (kp.created_time IS NULL OR kp.created_time >= :since)
         AND ((kc.text IS NOT NULL AND kc.text <> '') OR (kc.text_clean IS NOT NULL AND kc.text_clean <> ''))
-      ORDER BY score DESC
+      ORDER BY score DESC, kp.created_time DESC
       LIMIT :k
     ";
 
+    $rows = [];
     try {
-        $st = $pdo->prepare($sql);
+        $st = $pdo->prepare($sqlFT);
         $st->bindValue(':qq', $q);
+        if (!$hasFTTitle) $st->bindValue(':ql', '%' . $q . '%');
         $st->bindValue(':wild', $wild, PDO::PARAM_INT);
-        $st->bindValue(':src', $source);
-        $st->bindValue(':t', $trustMin);
-        $st->bindValue(':days', $days, PDO::PARAM_INT);
-        $st->bindValue(':k', (int)$k, PDO::PARAM_INT);
+        $st->bindValue(':src',  $source);
+        $st->bindValue(':t',    $trustMin);
+        $st->bindValue(':since', $since);
+        $st->bindValue(':k',    (int)$k, PDO::PARAM_INT);
         $st->execute();
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (PDOException $e) {
-        $msg = $e->getMessage();
-        // Thiếu FULLTEXT index → fallback LIKE
-        if (strpos($msg, '1191') !== false || stripos($msg, 'FULLTEXT') !== false) {
-            return kb_search_chunks_like($pdo, $q, $k, $opts);
-        }
-        throw $e;
+        // Nếu lỗi FULLTEXT (vd 1191) thì rơi xuống BOOLEAN/LIKE
+        $rows = [];
     }
+
+    // ===== 2) FULLTEXT BOOLEAN (mở rộng từ khóa TV) =====
+    if (!$rows) {
+        if (function_exists('expand_vi_query')) {
+            [$bool, $human] = expand_vi_query($q);
+            if ($bool) {
+                $titleScoreFTB = "COALESCE(MATCH(kp.title) AGAINST (:bb IN BOOLEAN MODE), 0) * 1.2";
+                $baseScoreB = "
+                    (
+                      " . ($hasFTTitle ? $titleScoreFTB : $titleScoreLike) . " +
+                      COALESCE(MATCH(kc.text, kc.text_clean) AGAINST (:bb IN BOOLEAN MODE), 0) * 1.0 +
+                      (1.0/(1.0 + IFNULL(TIMESTAMPDIFF(DAY,kp.created_time,NOW()),99999)/90))
+                    ) AS score
+                ";
+                $sqlBool = "
+                  SELECT
+                    kc.id AS chunk_id, kc.post_id, kc.chunk_idx,
+                    kc.text, kc.text_clean,
+                    kp.permalink_url, kp.created_time, kp.title,
+                    ks.source_name,
+                    (COALESCE(kp.trust_level,1.0) * COALESCE(kc.trust_level,1.0)) AS trust,
+                    $baseScoreB
+                  FROM kb_chunks kc
+                  JOIN kb_posts   kp ON kp.id = kc.post_id
+                  JOIN kb_sources ks ON ks.id = kp.source_id
+                  WHERE (:wild=1 OR ks.source_name = :src)
+                    AND COALESCE(kp.trust_level,1.0) >= :t
+                    AND COALESCE(kc.trust_level,1.0) >= :t
+                    AND (kp.created_time IS NULL OR kp.created_time >= :since)
+                    AND ((kc.text IS NOT NULL AND kc.text <> '') OR (kc.text_clean IS NOT NULL AND kc.text_clean <> ''))
+                  ORDER BY score DESC, kp.created_time DESC
+                  LIMIT :k
+                ";
+                try {
+                    $st2 = $pdo->prepare($sqlBool);
+                    $st2->bindValue(':bb', $bool);
+                    if (!$hasFTTitle) $st2->bindValue(':ql', '%' . $q . '%');
+                    $st2->bindValue(':wild', $wild, PDO::PARAM_INT);
+                    $st2->bindValue(':src',  $source);
+                    $st2->bindValue(':t',    $trustMin);
+                    $st2->bindValue(':since', $since);
+                    $st2->bindValue(':k',    (int)$k, PDO::PARAM_INT);
+                    $st2->execute();
+                    $rows = $st2->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                } catch (PDOException $e2) {
+                    $rows = [];
+                }
+            }
+        }
+    }
+
+    // ===== 3) LIKE fallback =====
+    if (!$rows) {
+        return kb_search_chunks_like($pdo, $q, $k, $opts);
+    }
+
+    return $rows;
 }

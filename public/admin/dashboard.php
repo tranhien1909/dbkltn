@@ -6,7 +6,6 @@ require_once __DIR__ . '/../../lib/openai_client.php';
 require_admin();
 send_security_headers();
 
-
 $err = '';
 $posts = [];
 try {
@@ -28,7 +27,7 @@ try {
             font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
             margin: 0;
             background: #ffffffff;
-            color: while
+            color: #333;
         }
 
         header {
@@ -40,9 +39,16 @@ try {
             border-bottom: 1px solid #20274a
         }
 
-        h1 {
+        h1,
+        h2 {
             font-size: 20px;
             margin: 0
+        }
+
+        h2 {
+            font-size: 18px;
+            margin: 24px 0 12px;
+            color: #1f2937;
         }
 
         nav a {
@@ -56,7 +62,9 @@ try {
             padding: 0 16px
         }
 
-        form textarea {
+        form textarea,
+        form input[type="password"],
+        form input[type="text"] {
             width: 100%;
             box-sizing: border-box;
             padding: 12px;
@@ -64,6 +72,12 @@ try {
             border: 1px solid #2c3566;
             background: white;
             color: black;
+            font-size: 14px;
+        }
+
+        form input[type="password"],
+        form input[type="text"] {
+            margin-bottom: 12px;
         }
 
         button {
@@ -73,17 +87,25 @@ try {
             border: 0;
             background: #3759ff;
             color: #fff;
-            cursor: pointer
+            cursor: pointer;
+            font-size: 14px;
         }
 
-        .checkbox {
-            display: block;
-            margin-top: 8px;
-            color: #a5b4fc
+        button:hover {
+            background: #2948dd;
         }
 
-        #result {
-            margin-top: 24px
+        button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+
+        .section-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
         }
 
         .warning {
@@ -103,6 +125,11 @@ try {
             border-left-color: #ef4444
         }
 
+        .warning.success {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+
         .badge {
             display: inline-block;
             padding: 2px 8px;
@@ -112,9 +139,71 @@ try {
             margin-right: 6px
         }
 
-        #risk {
-            font-weight: 600;
-            margin-bottom: 8px
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        #changePasswordResult {
+            margin-top: 12px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+            padding: 0;
+            margin: 0;
+        }
+
+        .close-modal:hover {
+            color: #374151;
         }
     </style>
 </head>
@@ -124,22 +213,60 @@ try {
         <div><strong style="color: red;">Admin Dashboard</strong></div>
         <nav>
             <a href="/admin/moderation.php" class="badge btn-danger">Cảnh báo cao</a>
+            <a href="#" class="badge btn-success" onclick="openPasswordModal(event)">Đổi mật khẩu</a>
             <a href="/logout.php" class="badge btn-success">Đăng xuất</a>
         </nav>
     </header>
+
     <main style="max-width:1100px;margin:24px auto;padding:0 16px">
         <?php if ($err): ?><div class="warning critical">Lỗi Graph API: <?= htmlspecialchars($err) ?></div><?php endif; ?>
 
-        <form method="post" action="/admin/action.php" onsubmit="return publishNotice(event)" style="margin:16px 0">
-            <div class="row" style="display: flex; gap: 10px;">
-                <input type="hidden" name="csrf" value="<?= htmlspecialchars(csrf_token()) ?>">
-                <input type="hidden" name="action" value="publish_post">
-                <textarea rows="2" name="message" id="" class="col-md-7" placeholder="Nhập nội dung đăng bài cảnh báo!"></textarea>
-                <button type="submit" class="col-md-5">Đăng bài thông báo</button>
+        <!-- Modal Đổi mật khẩu -->
+        <div id="passwordModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🔐 Đổi mật khẩu</h2>
+                    <button class="close-modal" onclick="closePasswordModal()">&times;</button>
+                </div>
+                <form method="post" action="/admin/action.php" onsubmit="return changePassword(event)">
+                    <input type="hidden" name="csrf" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="change_password">
+
+                    <div class="form-group">
+                        <label for="current_password">Mật khẩu hiện tại</label>
+                        <input type="password" id="current_password" name="current_password" required placeholder="Nhập mật khẩu hiện tại">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="new_password">Mật khẩu mới</label>
+                        <input type="password" id="new_password" name="new_password" required placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)" minlength="8">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirm_password">Xác nhận mật khẩu mới</label>
+                        <input type="password" id="confirm_password" name="confirm_password" required placeholder="Nhập lại mật khẩu mới" minlength="8">
+                    </div>
+
+                    <button type="submit">Đổi mật khẩu</button>
+                </form>
             </div>
-        </form>
+        </div>
 
+        <!-- Form Đăng bài thông báo -->
+        <div class="section-card">
+            <h2>📢 Đăng bài thông báo</h2>
+            <form method="post" action="/admin/action.php" onsubmit="return publishNotice(event)">
+                <div class="row" style="display: flex; gap: 10px;">
+                    <input type="hidden" name="csrf" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="publish_post">
+                    <textarea rows="2" name="message" class="col-md-7" placeholder="Nhập nội dung đăng bài cảnh báo!"></textarea>
+                    <button type="submit" class="col-md-5">Đăng bài thông báo</button>
+                </div>
+            </form>
+        </div>
 
+        <!-- Danh sách bài viết -->
+        <h2>📝 Bài viết gần đây</h2>
         <?php foreach ($posts as $p): ?>
             <article class="warning" style="border-left-color:#3759ff">
                 <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
@@ -153,7 +280,6 @@ try {
                     <?php endif; ?>
                 </div>
 
-
                 <details style="margin-top:10px">
                     <summary>Bình luận (<?= (int)($p['comments']['summary']['total_count'] ?? 0) ?>)</summary>
                     <div>
@@ -161,7 +287,8 @@ try {
                             <div class="warning">
                                 <div style="font-weight:600;"><?= htmlspecialchars(($c['from']['name'] ?? 'Ẩn danh') . ' — ' . ($c['created_time'] ?? '')) ?></div>
                                 <div style="white-space:pre-wrap;"><?= htmlspecialchars($c['message'] ?? '') ?></div>
-                                <form method="post" action="/admin/action.php" onsubmit="return doComment(event, '<?= htmlspecialchars($c['id']) ?>')">
+                                <!-- <form method="post" action="/admin/action.php" onsubmit="return doComment(event, '<?= htmlspecialchars($c['id']) ?>')"> -->
+                                <form method="post" action="/admin/action.php" onsubmit="return changePassword(event)">
                                     <input type="hidden" name="csrf" value="<?= htmlspecialchars(csrf_token()) ?>">
                                     <input type="hidden" name="action" value="comment">
                                     <input type="hidden" name="id" value="<?= htmlspecialchars($c['id']) ?>">
@@ -174,54 +301,98 @@ try {
                     </div>
                 </details>
 
-
-                <!-- <button class="analyze-post-btn" data-post-id="<?= htmlspecialchars($p['id']) ?>">
-                    Phân tích bài viết
-                </button> -->
                 <div id="ana-<?= htmlspecialchars($p['id']) ?>" class="analysis-box"></div>
             </article>
         <?php endforeach; ?>
     </main>
+
+    <!-- JavaScript handlers -->
     <script>
-        async function analyze(targetId, text) {
-            const res = await fetch('/analyze.php', {
+        // Mở modal đổi mật khẩu  
+        function openPasswordModal(e) {
+            e.preventDefault();
+            document.getElementById('passwordModal').classList.add('show');
+        }
+
+        // Đóng modal  
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.remove('show');
+            // Reset form khi đóng  
+            document.querySelector('#passwordModal form').reset();
+        }
+
+        // Đóng modal khi click bên ngoài  
+        window.onclick = function(event) {
+            const modal = document.getElementById('passwordModal');
+            if (event.target === modal) {
+                closePasswordModal();
+            }
+        }
+
+        // Handler cho form đổi mật khẩu  
+        async function changePassword(e) {
+            e.preventDefault();
+            e.stopPropagation(); // Thêm dòng này để chắc chắn  
+
+            const form = e.target;
+            const newPass = form.querySelector('#new_password').value;
+            const confirmPass = form.querySelector('#confirm_password').value;
+
+            // Kiểm tra mật khẩu khớp  
+            if (newPass !== confirmPass) {
+                alert('Mật khẩu mới và xác nhận không khớp!');
+                return false;
+            }
+
+            // Kiểm tra độ dài  
+            if (newPass.length < 8) {
+                alert('Mật khẩu mới phải có ít nhất 8 ký tự!');
+                return false;
+            }
+
+            const fd = new FormData(form);
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Đang xử lý...';
+
+            try {
+                const res = await fetch('/admin/action.php', {
+                    method: 'POST',
+                    body: fd
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    alert('Lỗi: ' + data.error);
+                } else {
+                    alert('✓ Đổi mật khẩu thành công!');
+                    form.reset();
+                }
+            } catch (err) {
+                alert('Lỗi kết nối: ' + err.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Đổi mật khẩu';
+            }
+
+            return false;
+        }
+
+        // Handler cho form đăng bài (giữ nguyên)  
+        async function publishNotice(e) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const res = await fetch('/admin/action.php', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text,
-                    saveLog: true
-                })
+                body: fd
             });
-            return await res.json();
-        }
-
-        function render(el, data) {
-            el.style.display = 'block';
-            el.innerHTML = `<div class="badge">Risk ${data.overall_risk}</div>` +
-                (data.warnings || []).map(w => `<div class="warning ${w.severity}"><strong>${w.title}</strong><div>${w.evidence}</div><div><em>Gợi ý:</em> ${w.suggestion}</div></div>`).join('');
-        }
-
-        function analyzePost(e, id, text) {
-            e.preventDefault();
-            const el = document.getElementById('res-' + id);
-            el.textContent = 'Đang phân tích...';
-            analyze(id, text).then(d => render(el, d));
+            const data = await res.json();
+            if (data.error) alert('Lỗi: ' + data.error);
+            else alert('Đã đăng bài: ' + (data.id || 'OK'));
             return false;
         }
 
-        function analyzeComment(e, id, text) {
-            e.preventDefault();
-            const el = document.getElementById('res-' + id);
-            el.textContent = 'Đang phân tích...';
-            analyze(id, text).then(d => render(el, d));
-            return false;
-        }
-    </script>
-
-    <!-- post và comment -->
-    <script>
+        // Handler cho comment (giữ nguyên)  
         async function doComment(e, id) {
             e.preventDefault();
             const fd = new FormData(e.target);
@@ -234,6 +405,7 @@ try {
             else alert('Đã bình luận!');
             return false;
         }
+
         async function toggleHide(id, hide) {
             const fd = new FormData();
             fd.append('csrf', '<?= htmlspecialchars(csrf_token()) ?>');
@@ -248,77 +420,6 @@ try {
             if (data.error) alert('Lỗi: ' + data.error);
             else alert(hide ? 'Đã ẩn' : 'Đã hiện');
         }
-    </script>
-
-    <!-- Đăng thông báo -->
-    <script>
-        async function publishNotice(e) {
-            e.preventDefault();
-            const fd = new FormData(e.target);
-            const res = await fetch('/admin/action.php', {
-                method: 'POST',
-                body: fd
-            });
-            const data = await res.json();
-            if (data.error) alert('Lỗi: ' + data.error);
-            else alert('Đã đăng bài: ' + (data.id || 'OK'));
-            return false;
-        }
-    </script>
-    <script>
-        async function renderAnalysis(container, data) {
-            const html = [];
-            if (data.post) {
-                html.push(`<div class="card">
-      <div><b>Post</b> — rủi ro: ${data.post.risk}/100
-        · <a target="_blank" href="${data.post.permalink_url||'#'}">Mở Facebook</a></div>
-    </div>`);
-            }
-            if (data.comments?.length) {
-                data.comments.sort((a, b) => b.risk - a.risk);
-                for (const c of data.comments) {
-                    html.push(`<div class="card">
-        <div><b>${c.from||'N/A'}</b> — rủi ro: ${c.risk}/100</div>
-        <div style="white-space:pre-wrap">${(c.message||'').replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]))}</div>
-        <div class="muted">${c.created_time||''}</div>
-      </div>`);
-                }
-            } else {
-                html.push('<div class="muted">Không có bình luận để phân tích.</div>');
-            }
-            container.innerHTML = html.join('');
-        }
-
-        document.querySelectorAll('.analyze-post-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const id = btn.dataset.postId;
-                const box = document.getElementById('ana-' + id);
-                btn.disabled = true;
-                const old = btn.textContent;
-                btn.textContent = 'Đang phân tích...';
-                try {
-                    const fd = new FormData();
-                    fd.append('csrf', '<?= htmlspecialchars(csrf_token()) ?>');
-                    fd.append('action', 'analyze_post');
-                    fd.append('id', id);
-                    const res = await fetch('/admin/action.php', {
-                        method: 'POST',
-                        body: fd
-                    });
-                    const data = await res.json();
-                    if (data.error) {
-                        box.textContent = 'Lỗi: ' + data.error;
-                    } else {
-                        await renderAnalysis(box, data);
-                    }
-                } catch (e) {
-                    box.textContent = 'Lỗi kết nối: ' + e.message;
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = old;
-                }
-            });
-        });
     </script>
 
 </body>

@@ -72,6 +72,46 @@ try {
                 break;
             }
 
+        case 'change_password': {
+                $currentPassword = trim($_POST['current_password'] ?? '');
+                $newPassword = trim($_POST['new_password'] ?? '');
+                $confirmPassword = trim($_POST['confirm_password'] ?? '');
+
+                if ($currentPassword === '' || $newPassword === '' || $confirmPassword === '') {
+                    throw new Exception('Thiếu thông tin mật khẩu');
+                }
+
+                if ($newPassword !== $confirmPassword) {
+                    throw new Exception('Mật khẩu mới và xác nhận không khớp');
+                }
+
+                if (strlen($newPassword) < 8) {
+                    throw new Exception('Mật khẩu mới phải có ít nhất 8 ký tự');
+                }
+
+                // Lấy admin đầu tiên trong database (giả sử chỉ có 1 admin)  
+                $pdo = db();
+                $stmt = $pdo->query('SELECT id, username, password_hash FROM admin_users LIMIT 1');
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$user) {
+                    throw new Exception('Không tìm thấy tài khoản admin');
+                }
+
+                // Kiểm tra mật khẩu hiện tại  
+                if (!password_verify($currentPassword, $user['password_hash'])) {
+                    throw new Exception('Mật khẩu hiện tại không đúng');
+                }
+
+                // Cập nhật mật khẩu mới  
+                $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+                $updateStmt = $pdo->prepare('UPDATE admin_users SET password_hash = ? WHERE id = ?');
+                $updateStmt->execute([$newHash, $user['id']]);
+
+                echo json_encode(['ok' => true, 'message' => 'Đổi mật khẩu thành công'], JSON_UNESCAPED_UNICODE);
+                break;
+            }
+
         case 'comment': {
                 $id  = trim($_POST['id'] ?? '');
                 $msg = trim($_POST['message'] ?? '');
@@ -282,7 +322,249 @@ try {
                 break;
             }
 
+        case 'scan_reply_only': {
+                // Chỉ quét và reply, KHÔNG ẩn  
+                $window    = max(0, (int)($_POST['window'] ?? 30));
+                $threshold = (int) envv('AUTO_RISK_THRESHOLD', 60);
+                $prefix    = envv('AUTO_REPLY_PREFIX', '[BQT]');
 
+                $sinceUnix    = time() - $window * 60;
+                $noTimeFilter = ($window === 0);
+                $pageId       = envv('FB_PAGE_ID');
+
+                $scanRes = ['scanned' => 0, 'high_risk' => 0, 'replied' => 0, 'skipped' => 0, 'errors' => 0];
+
+                // Lấy posts  
+                try {
+                    if ($noTimeFilter) {
+                        $postsRes = fb_api("/{$pageId}/posts", [
+                            'limit'  => 25,
+                            'fields' => 'id,created_time,permalink_url'
+                        ]);
+                    } else {
+                        $postsRes = fb_get_page_posts_since($sinceUnix, 25);
+                        if (empty($postsRes['data'])) {
+                            $postsRes = fb_api("/{$pageId}/posts", [
+                                'limit'  => 25,
+                                'fields' => 'id,created_time,permalink_url'
+                            ]);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Graph posts: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+
+                $posts = $postsRes['data'] ?? [];
+                foreach ($posts as $p) {
+                    $pid = $p['id'] ?? '';
+                    if (!$pid) continue;
+
+                    // Lấy comments  
+                    try {
+                        if ($noTimeFilter) {
+                            $commentsRes = fb_api("/{$pid}/comments", [
+                                'filter' => 'stream',
+                                'limit'  => 100,
+                                'order'  => 'reverse_chronological',
+                                'fields' => 'id,from{id,name},message,created_time,is_hidden,permalink_url'
+                            ]);
+                        } else {
+                            $commentsRes = fb_get_post_comments_since($pid, $sinceUnix, 100);
+                        }
+                    } catch (Throwable $e) {
+                        $scanRes['errors']++;
+                        continue;
+                    }
+
+                    foreach (($commentsRes['data'] ?? []) as $c) {
+                        $cid  = $c['id'] ?? '';
+                        $msg  = trim($c['message'] ?? '');
+                        $from = $c['from']['id'] ?? '';
+                        if (!$cid || $msg === '') continue;
+
+                        if (!$noTimeFilter) {
+                            $ct = strtotime($c['created_time'] ?? '1970-01-01');
+                            if ($ct < $sinceUnix) continue;
+                        }
+
+                        if ($pageId && $from === $pageId) continue;
+
+                        // Chỉ check action "replied"  
+                        $chk = db()->prepare('SELECT 1 FROM auto_actions WHERE object_id=? AND action="replied" LIMIT 1');
+                        $chk->execute([$cid]);
+                        if ($chk->fetchColumn()) {
+                            $scanRes['skipped']++;
+                            continue;
+                        }
+
+                        $scanRes['scanned']++;
+
+                        try {
+                            $res = analyze_text_with_schema($msg);
+                        } catch (Throwable $e) {
+                            aa_upsert($cid, 'comment', 'skipped', 0, 'analyze_error:' . substr($e->getMessage(), 0, 120));
+                            $scanRes['errors']++;
+                            continue;
+                        }
+                        $risk = (int)($res['overall_risk'] ?? 0);
+
+                        aa_upsert($cid, 'comment', 'score', $risk, 'scan_reply_only');
+
+                        if ($risk < $threshold) {
+                            aa_upsert($cid, 'comment', 'skipped', $risk, 'under_threshold');
+                            continue;
+                        }
+
+                        $scanRes['high_risk']++;
+
+                        // Template theo labels  
+                        $labels = $res['labels'] ?? [];
+                        if (!empty($labels['scam_phishing'])) {
+                            $tpl = "Cảnh báo: Có dấu hiệu mời chào/lừa đảo. Vui lòng cảnh giác, không cung cấp thông tin cá nhân hay chuyển tiền.";
+                        } elseif (!empty($labels['hate_speech'])) {
+                            $tpl = "Nhắc nhở: Xin giữ trao đổi văn minh, tránh lời lẽ xúc phạm/công kích.";
+                        } elseif (!empty($labels['misinformation'])) {
+                            $tpl = "Lưu ý: Nội dung có thể chưa đủ nguồn xác thực. Vui lòng bổ sung đường dẫn đến nguồn tin cậy.";
+                        } else {
+                            $tpl = "Lưu ý: Nội dung có rủi ro gây hiểu nhầm. Vui lòng kiểm chứng và sử dụng ngôn từ phù hợp.";
+                        }
+                        $reply = trim($prefix . ' ' . $tpl);
+
+                        // CHỈ REPLY  
+                        try {
+                            fb_comment($cid, $reply);
+                            aa_upsert($cid, 'comment', 'replied', $risk, 'scan_reply_only', $reply);
+                            $scanRes['replied']++;
+                            usleep(3500000);
+                        } catch (Throwable $eAct) {
+                            $reason = (strpos($eAct->getMessage(), '1446036') !== false)
+                                ? 'spam_blocked'
+                                : 'reply_error:' . substr($eAct->getMessage(), 0, 120);
+                            aa_upsert($cid, 'comment', 'skipped', $risk, $reason, $reply);
+                        }
+                    }
+                }
+
+                echo json_encode($scanRes, JSON_UNESCAPED_UNICODE);
+                break;
+            }
+
+        case 'scan_hide_only': {
+                // Chỉ quét và ẩn, KHÔNG reply  
+                $window    = max(0, (int)($_POST['window'] ?? 30));
+                $threshold = (int) envv('AUTO_RISK_THRESHOLD', 60);
+
+                $sinceUnix    = time() - $window * 60;
+                $noTimeFilter = ($window === 0);
+                $pageId       = envv('FB_PAGE_ID');
+
+                $scanRes = ['scanned' => 0, 'high_risk' => 0, 'hidden' => 0, 'skipped' => 0, 'errors' => 0];
+
+                // Lấy posts  
+                try {
+                    if ($noTimeFilter) {
+                        $postsRes = fb_api("/{$pageId}/posts", [
+                            'limit'  => 25,
+                            'fields' => 'id,created_time,permalink_url'
+                        ]);
+                    } else {
+                        $postsRes = fb_get_page_posts_since($sinceUnix, 25);
+                        if (empty($postsRes['data'])) {
+                            $postsRes = fb_api("/{$pageId}/posts", [
+                                'limit'  => 25,
+                                'fields' => 'id,created_time,permalink_url'
+                            ]);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Graph posts: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+
+                $posts = $postsRes['data'] ?? [];
+                foreach ($posts as $p) {
+                    $pid = $p['id'] ?? '';
+                    if (!$pid) continue;
+
+                    // Lấy comments  
+                    try {
+                        if ($noTimeFilter) {
+                            $commentsRes = fb_api("/{$pid}/comments", [
+                                'filter' => 'stream',
+                                'limit'  => 100,
+                                'order'  => 'reverse_chronological',
+                                'fields' => 'id,from{id,name},message,created_time,is_hidden,permalink_url'
+                            ]);
+                        } else {
+                            $commentsRes = fb_get_post_comments_since($pid, $sinceUnix, 100);
+                        }
+                    } catch (Throwable $e) {
+                        $scanRes['errors']++;
+                        continue;
+                    }
+
+                    foreach (($commentsRes['data'] ?? []) as $c) {
+                        $cid  = $c['id'] ?? '';
+                        $msg  = trim($c['message'] ?? '');
+                        $from = $c['from']['id'] ?? '';
+                        if (!$cid || $msg === '') continue;
+
+                        if (!$noTimeFilter) {
+                            $ct = strtotime($c['created_time'] ?? '1970-01-01');
+                            if ($ct < $sinceUnix) continue;
+                        }
+
+                        if ($pageId && $from === $pageId) continue;
+
+                        // Chỉ check action "hidden"  
+                        $chk = db()->prepare('SELECT 1 FROM auto_actions WHERE object_id=? AND action="hidden" LIMIT 1');
+                        $chk->execute([$cid]);
+                        if ($chk->fetchColumn()) {
+                            $scanRes['skipped']++;
+                            continue;
+                        }
+
+                        $scanRes['scanned']++;
+
+                        try {
+                            $res = analyze_text_with_schema($msg);
+                        } catch (Throwable $e) {
+                            aa_upsert($cid, 'comment', 'skipped', 0, 'analyze_error:' . substr($e->getMessage(), 0, 120));
+                            $scanRes['errors']++;
+                            continue;
+                        }
+                        $risk = (int)($res['overall_risk'] ?? 0);
+
+                        aa_upsert($cid, 'comment', 'score', $risk, 'scan_hide_only');
+
+                        if ($risk < $threshold) {
+                            aa_upsert($cid, 'comment', 'skipped', $risk, 'under_threshold');
+                            continue;
+                        }
+
+                        $scanRes['high_risk']++;
+
+                        // CHỈ HIDE  
+                        try {
+                            fb_hide_comment($cid, true);
+                            aa_upsert($cid, 'comment', 'hidden', $risk, 'scan_hide_only');
+                            $scanRes['hidden']++;
+                            usleep(3500000);
+                        } catch (Throwable $eAct) {
+                            $reason = (strpos($eAct->getMessage(), '1446036') !== false)
+                                ? 'spam_blocked'
+                                : 'hide_error:' . substr($eAct->getMessage(), 0, 120);
+                            aa_upsert($cid, 'comment', 'skipped', $risk, $reason);
+                        }
+                    }
+                }
+
+                echo json_encode($scanRes, JSON_UNESCAPED_UNICODE);
+                break;
+            }
 
         case 'analyze_post': {
                 $postId = trim($_POST['id'] ?? '');

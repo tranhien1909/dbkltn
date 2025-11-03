@@ -113,6 +113,42 @@ if (scanBtn) scanBtn.addEventListener('click', async () => {
   }
 });
 
+// Nút "Quét và Reply"  
+const scanReplyBtn = document.getElementById('scanReplyBtn');  
+if (scanReplyBtn) scanReplyBtn.addEventListener('click', async () => {  
+  scanReplyBtn.disabled = true;  
+  try {  
+    const fd = new FormData();  
+    fd.append('csrf', CSRF);  
+    fd.append('action', 'scan_reply_only');  
+    fd.append('window', getWindowMinutes());  
+    const data = await callAction(fd);  
+    alert(`Đã quét: ${data.scanned}\nVượt ngưỡng: ${data.high_risk}\nĐã trả lời: ${data.replied}`);  
+    location.reload();  
+  } catch (e) {  
+    alert('Lỗi: ' + e.message);  
+    scanReplyBtn.disabled = false;  
+  }  
+});  
+  
+// Nút "Quét và Ẩn"  
+const scanHideBtn = document.getElementById('scanHideBtn');  
+if (scanHideBtn) scanHideBtn.addEventListener('click', async () => {  
+  scanHideBtn.disabled = true;  
+  try {  
+    const fd = new FormData();  
+    fd.append('csrf', CSRF);  
+    fd.append('action', 'scan_hide_only');  
+    fd.append('window', getWindowMinutes());  
+    const data = await callAction(fd);  
+    alert(`Đã quét: ${data.scanned}\nVượt ngưỡng: ${data.high_risk}\nĐã ẩn: ${data.hidden}`);  
+    location.reload();  
+  } catch (e) {  
+    alert('Lỗi: ' + e.message);  
+    scanHideBtn.disabled = false;  
+  }  
+});
+
   const csrf = (document.querySelector('meta[name="csrf-token"]')||{}).content || '';
 
   async function postAction(action, payload = {}) {

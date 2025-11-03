@@ -18,6 +18,10 @@ function env_load($file = __DIR__ . '/../.env')
 
 env_load();
 
+if (!getenv('FB_PAGE_TOKEN') && getenv('FB_PAGE_ACCESS_TOKEN')) {
+    putenv('FB_PAGE_TOKEN=' . getenv('FB_PAGE_ACCESS_TOKEN'));
+}
+
 
 function envv($key, $default = null)
 {
