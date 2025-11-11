@@ -1,5 +1,5 @@
 <?php
-// tools/scan_now.php  (bản robust + debug)
+// php  (bản robust + debug)
 // Chấm điểm comment gần đây, tự lọc theo created_time (không dùng 'since' của Graph)
 
 require_once __DIR__ . '/../lib/config.php';

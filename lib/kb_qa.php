@@ -19,7 +19,8 @@ function kb_answer_cutoff(PDO $pdo, string $q, array $opts = []): ?array
     if (!$intent) return null;
 
     // lấy “tên ngành” còn lại sau khi trừ các từ khóa
-    $normMajor = trim(preg_replace('/\b(điểm|trúng|chuẩn|xét|tuyển|sàn|' . preg_quote($year, '/') . ')\b/u', ' ', $norm));
+    $normMajor = trim(preg_replace('/\b(điểm|trúng|chuẩn|xét|tuyển|sàn|năm|' . preg_quote($year, '/') . ')\b/u', ' ', $norm));
+    $normMajor = preg_replace('/\s+/u', ' ', $normMajor); // gộp khoảng trắng  
     if ($normMajor === '') $normMajor = $norm;
 
     // 2) ưu tiên tài liệu IUH Official
@@ -44,8 +45,11 @@ function kb_answer_cutoff(PDO $pdo, string $q, array $opts = []): ?array
     );
 
     // 3) regex linh hoạt bắt 4 cột điểm (TN, ĐGNL 1200, ĐGNL 30, Kết hợp)
-    $rxMajor = '(qu[aă]n\s*(?:l[ýy]|tr[ịi])\s*x[âa]y\s*d[ựu]ng|' . preg_quote($normMajor, '/') . ')';
-    $rx = '/(?P<name>' . $rxMajor . ').{0,120}?'
+    $rxMajor = '(nh[óo]m\s*ng[àa]nh\s*)?'  // optional "Nhóm ngành"  
+        . '(qu[aă]n\s*(?:l[ýy]|tr[ịi])\s*x[âa]y\s*d[ựu]ng|'
+        . preg_quote($normMajor, '/') . ')';
+
+    $rx = '/(?P<name>' . $rxMajor . ').{0,300}?'  // tăng từ 120 lên 300  
         . '(?P<TN>\d{1,2}(?:[.,]\d{1,2})?)\s+'
         . '(?P<DGNL1200>\d{3,4})\s+'
         . '(?P<DGNL30>\d{1,2}(?:[.,]\d{1,2})?)\s+'
@@ -53,7 +57,10 @@ function kb_answer_cutoff(PDO $pdo, string $q, array $opts = []): ?array
 
     foreach ($byPost as $item) {
         $txt = $item['text'];
+        error_log("[DEBUG] Checking text: " . mb_substr($txt, 0, 200));
+        error_log("[DEBUG] Regex pattern: " . $rx);
         if (preg_match($rx, $txt, $m)) {
+            error_log("[DEBUG] MATCHED! Name: " . $m['name']);
             $title = $item['meta']['title'] ?? '';
             $date  = $item['meta']['created_time'] ?? '';
             $url   = $item['meta']['permalink_url'] ?? '';
@@ -74,7 +81,80 @@ function kb_answer_cutoff(PDO $pdo, string $q, array $opts = []): ?array
                 'answer'   => $answer,
                 'citation' => ['url' => $url, 'date' => $date, 'title' => $title],
             ];
+        } else {
+            error_log("[DEBUG] No match for this post");
         }
     }
+    return null;
+}
+
+function kb_answer_fee(PDO $pdo, string $q, array $opts = []): ?array
+{
+    $norm = vi_norm($q);
+
+    // 1. Nhận diện ý định
+    $intent = preg_match('/(l[ệe]\s*ph[íi]|ph[íi]\s*(thi|xét|đăng\s*ký|học|sát\s*hạch|xét\s*tuyển)|học\s*ph[íi])/iu', $norm);
+    if (!$intent) return null;
+
+    // 2. Truy xuất dữ liệu IUH
+    $hits = kb_search_chunks_v2($pdo, $q, 15, [
+        'source'    => 'IUH Official',
+        'trust_min' => (float)($opts['trust_min'] ?? 0.75),
+        'days'      => (int)($opts['days'] ?? 900),
+    ]);
+    if (!$hits) return null;
+
+    // 3. Gom nội dung theo post
+    $byPost = [];
+    foreach ($hits as $h) {
+        $pid = (int)$h['post_id'];
+        if (!isset($byPost[$pid])) $byPost[$pid] = ['meta' => $h, 'text' => ''];
+        $byPost[$pid]['text'] .= "\n" . ($h['text_clean'] ?? $h['text'] ?? '');
+    }
+
+    // 4. Biểu thức bắt các mẫu “phí / miễn phí / đồng”
+    $rx = '/(?:(l[ệe]\s*ph[íi]|ph[íi]|học\s*ph[íi]).{0,100}?)?'
+        . '(?P<amount>\d{1,3}(?:[.,]?\d{3})*(?:\s*(?:đ|đồng)))'
+        . '|(?P<free>miễn\s*ph[íi])/isu';
+
+    foreach ($byPost as $item) {
+        $txt = $item['text'];
+        $matches = [];
+        if (preg_match_all($rx, $txt, $matches, PREG_SET_ORDER)) {
+            // Ưu tiên “miễn phí”, sau đó “số tiền nhỏ nhất”
+            $amounts = [];
+            $isFree = false;
+            foreach ($matches as $m) {
+                if (!empty($m['free'])) {
+                    $isFree = true;
+                    break;
+                }
+                if (!empty($m['amount'])) {
+                    $amounts[] = trim($m['amount']);
+                }
+            }
+
+            $title = $item['meta']['title'] ?? '';
+            $date  = $item['meta']['created_time'] ?? '';
+            $url   = $item['meta']['permalink_url'] ?? '';
+
+            if ($isFree) {
+                $answer = "Theo thông báo của IUH, **kỳ thi hoặc hoạt động này được miễn phí** (sinh viên không phải đóng lệ phí).";
+            } elseif ($amounts) {
+                // Lấy giá trị nhỏ nhất trong các số tiền
+                $min = min(array_map(fn($v) => (float)preg_replace('/[^\d.]/', '', str_replace(',', '.', $v)), $amounts));
+                $display = number_format($min, 0, ',', '.') . ' đồng';
+                $answer = "Theo thông báo của IUH, **lệ phí / học phí liên quan là khoảng {$display}**.";
+            } else {
+                continue;
+            }
+
+            return [
+                'answer'   => $answer,
+                'citation' => ['url' => $url, 'date' => $date, 'title' => $title],
+            ];
+        }
+    }
+
     return null;
 }

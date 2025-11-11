@@ -6,12 +6,73 @@
     <title>Tra cứu thông tin IUH (từ nguồn chính thống)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="preconnect" href="/" />
+    <!--css-->
+    <link rel="stylesheet" href="/assets/styles.css">
+    <!-- favicon-->
+    <link rel="shortcut icon" href="./favicon.svg" type="image/svg+xml">
+
+    <!--css-->
+    <link rel="stylesheet" href="./assets/style.css">
+
+
+    <!-- google font link-->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Roboto:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        .card {
+            background: linear-gradient(135deg, #f8d7da, #f1b0b7);
+            color: #721c24;
+            padding: 20px 25px;
+            border-radius: 12px;
+            border: 1px solid #f5c6cb;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 10px 0 10px 0;
+            text-align: left;
+            animation: fadeIn 0.4s ease-in-out;
+            position: relative;
+        }
+
+        /* Tiêu đề trong thẻ */
+        .card h3 {
+            margin-top: 0;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Nội dung chi tiết */
+        .card p {
+            margin: 8px 0 0 0;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* Hiệu ứng xuất hiện */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
     <style>
         :root {
-            --bg: #0b1220;
+            --bg: #ffffff;
             --card: #0f172a;
-            --muted: #94a3b8;
-            --txt: #e6edf3;
+            --muted: #506889;
+            --txt: #000000;
             --pri: #3b82f6;
             --ok: #10b981
         }
@@ -49,7 +110,7 @@
             flex: 1;
             padding: 12px 14px;
             border: 1px solid #233046;
-            background: #0b1327;
+            background: #fdfdfd;
             color: var(--txt);
             border-radius: 10px
         }
@@ -122,31 +183,310 @@
 </head>
 
 <body>
-    <div class="wrap">
-        <h1>Tra cứu thông tin từ Fanpage IUH</h1>
-        <div class="bar">
-            <input id="q" type="text" placeholder="Ví dụ: học phí HK2 2024-2025, lịch thi TAĐV…" />
-            <button id="go">Tra cứu</button>
+    <!-- HEADER-->
+    <header class="header">
+        <div class="header-top">
+            <div class="container">
+                <ul class="contact-list">
+                    <li class="contact-item">
+                        <ion-icon name="mail-outline"></ion-icon>
+                        <a href="mailto:iCheck@gmail.com" class="contact-link">iCheck@gmail.com</a>
+                    </li>
+                    <li class="contact-item">
+                        <ion-icon name="call-outline"></ion-icon>
+                        <a href="tel:+917558951351" class="contact-link">+0123456789</a>
+                    </li>
+                </ul>
+                <ul class="social-list">
+                    <li>
+                        <a href="#" class="social-link">
+                            <ion-icon name="logo-facebook"></ion-icon>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="social-link">
+                            <ion-icon name="logo-instagram"></ion-icon>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="social-link">
+                            <ion-icon name="logo-twitter"></ion-icon>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="social-link">
+                            <ion-icon name="logo-youtube"></ion-icon>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="header-bottom" data-header>
+            <div class="container">
+                <a href="#" class="logo">iCheck</a>
+                <nav class="navbar container" data-navbar>
+                    <ul class="navbar-list">
+                        <li>
+                            <a href="/index.php" class="navbar-link" data-nav-link>Trang chủ</a>
+                        </li>
+                        <li>
+                            <a href="/index.php#analyze" class="navbar-link" data-nav-link>Phân tích nhãn rủi ro</a>
+                        </li>
+                        <li>
+                            <a href="/answer.html" class="navbar-link" data-nav-link>Trả lời IUH</a>
+                        </li>
+                        <li>
+                            <a href="/index.php#contact" class="navbar-link" data-nav-link>Liên hệ</a>
+                        </li>
+                    </ul>
+                </nav>
+                <a href="/login.php" class="btn">Admin Login</a>
+                <button class="nav-toggle-btn" aria-label="Toggle menu" data-nav-toggler>
+                    <ion-icon name="menu-sharp" aria-hidden="true" class="menu-icon"></ion-icon>
+                    <ion-icon name="close-sharp" aria-hidden="true" class="close-icon"></ion-icon>
+                </button>
+            </div>
+        </div>
+    </header>
+    <article>
+        <!--HERO-->
+        <section class="section hero" id="home" style="background-image: url('./assets/images/hero-bg.png')"
+            aria-label="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <img src="assets/images/iCheck_logo.png" alt="ICON" width="70" height="70">
+                    <p class="section-subtitle">Welcome To iCheck</p>
+                    <h1 class="h1 hero-title"></h1>
+                    <p class="hero-text">
+
+                    </p>
+                </div>
+                <figure class="hero-banner">
+                    <img src="./assets/images/iuh.jpg" width="587" height="839" alt="hero banner" class="w-100">
+                </figure>
+            </div>
+        </section>
+
+        <style>
+            .card {
+                background: linear-gradient(135deg, #f8d7da, #f1b0b7);
+                color: #721c24;
+                padding: 20px 25px;
+                border-radius: 12px;
+                border: 1px solid #f5c6cb;
+                box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 600px;
+                margin: 10px 0 10px 0;
+                text-align: left;
+                animation: fadeIn 0.4s ease-in-out;
+                position: relative;
+            }
+
+            /* Tiêu đề trong thẻ */
+            .card h3 {
+                margin-top: 0;
+                font-size: 18px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            /* Nội dung chi tiết */
+            .card p {
+                margin: 8px 0 0 0;
+                font-size: 15px;
+                line-height: 1.6;
+            }
+
+            /* Hiệu ứng xuất hiện */
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-5px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        </style>
+
+        <div class="wrap" style="margin-top: 3rem;">
+            <h1>Tra cứu thông tin từ Fanpage IUH</h1>
+            <div class="bar">
+                <input id="q" type="text" placeholder="Ví dụ: học phí HK2 2024-2025, lịch thi TAĐV…" />
+                <button id="go">Tra cứu</button>
+            </div>
+
+            <div id="hint" class="muted small">
+                Nguồn dữ liệu: các bài viết chính thống đã đồng bộ từ fanpage IUH. Kết quả có kèm đường dẫn để kiểm
+                chứng.
+            </div>
+
+            <div id="result" class="card" hidden>
+                <div class="badges" id="badges"></div>
+                <div class="answer" id="answer"></div>
+            </div>
+
+            <div id="citablock" class="card" hidden>
+                <div class="muted small">Trích dẫn nguồn (nhấp để mở Facebook):</div>
+                <div id="citas" class="list"></div>
+            </div>
+
+            <div id="msg" class="muted small"></div>
         </div>
 
-        <div id="hint" class="muted small">
-            Nguồn dữ liệu: các bài viết chính thống đã đồng bộ từ fanpage IUH. Kết quả có kèm đường dẫn để kiểm chứng.
-        </div>
+        <script src="/assets/answer.js"></script>
+        <!--FOOTER-->
+        <footer class="footer" id="contact">
+            <div class="footer-top section">
+                <div class="container">
+                    <div class="footer-brand">
+                        <a href="#" class="logo">iCheck</a>
+                        <p class="footer-text">
+                            iCheck là trợ lý kiểm duyệt nội dung cho fanpage và cộng đồng. Hệ thống tự động thu thập
+                            bài viết & bình luận, chấm điểm rủi ro theo thời gian thực, cảnh báo tức thì và lưu vết xử
+                            lý.
+                            Giúp bạn an tâm truyền thông – việc “soi rủi ro” cứ để iCheck lo.
+                        </p>
+                        <div class="schedule">
+                            <div class="schedule-icon">
+                                <ion-icon name="time-outline"></ion-icon>
+                            </div>
+                            <span class="span">
+                                24 X 7:<br>
+                                365 Days
+                            </span>
+                        </div>
+                    </div>
+                    <ul class="footer-list">
+                        <li>
+                            <p class="footer-list-title">Other Links</p>
+                        </li>
+                        <li>
+                            <a href="#" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Home</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#analyze" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Analyze</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#contact" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Contact</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="http://localhost/negative-info-guard/php/admin/login.php" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Login</span>
+                            </a>
+                        </li>
+                    </ul>
+                    <ul class="footer-list">
+                        <li>
+                            <p class="footer-list-title">Our Services</p>
+                        </li>
+                        <li>
+                            <a href="#" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Thu thập post & comment tự động</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Chấm điểm rủi ro theo thời gian thực</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">Bộ lọc tục tiếng Việt có thể tùy chỉnh</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="footer-link">
+                                <ion-icon name="add-outline"></ion-icon>
+                                <span class="span">API & Webhook để tích hợp hệ thống</span>
+                            </a>
+                        </li>
+                    </ul>
+                    <ul class="footer-list">
+                        <li>
+                            <p class="footer-list-title">Contact Us</p>
+                        </li>
+                        <li class="footer-item">
+                            <div class="item-icon">
+                                <ion-icon name="location-outline"></ion-icon>
+                            </div>
+                            <a href="https://goo.gl/maps/BYA5MxQUg5B8ZFLcA">
+                                <address class="item-text">
+                                    TP.HCM, Viet Nam
+                                </address>
+                            </a>
+                        </li>
+                        <li class="footer-item">
+                            <div class="item-icon">
+                                <ion-icon name="call-outline"></ion-icon>
+                            </div>
+                            <a href="tel:+0123456789" class="footer-link">+0123456789</a>
+                        </li>
+                        <li class="footer-item">
+                            <div class="item-icon">
+                                <ion-icon name="mail-outline"></ion-icon>
+                            </div>
+                            <a href="mailto:help@example.com" class="footer-link">iCheck@gmail.com</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <div class="container">
+                    <p class="copyright">
+                        &copy; 2025 All Rights Reserved by iCheck
+                    </p>
+                    <ul class="social-list">
+                        <li>
+                            <a href="#" class="social-link">
+                                <ion-icon name="logo-facebook"></ion-icon>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="social-link">
+                                <ion-icon name="logo-instagram"></ion-icon>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="social-link">
+                                <ion-icon name="logo-twitter"></ion-icon>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </footer>
+        <!--BACK TO TOP-->
+        <a href="#top" class="back-top-btn" aria-label="back to top" data-back-top-btn>
+            <ion-icon name="caret-up" aria-hidden="true"></ion-icon>
+        </a>
 
-        <div id="result" class="card" hidden>
-            <div class="badges" id="badges"></div>
-            <div class="answer" id="answer"></div>
-        </div>
-
-        <div id="citablock" class="card" hidden>
-            <div class="muted small">Trích dẫn nguồn (nhấp để mở Facebook):</div>
-            <div id="citas" class="list"></div>
-        </div>
-
-        <div id="msg" class="muted small"></div>
-    </div>
-
-    <script src="/assets/answer.js"></script>
+        <!--custom js link-->
+        <script src="./assets/js/script.js" defer></script>
+        <!--ionicon link-->
+        <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+        <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+        <script src="/assets/app.js"></script>
 </body>
+<!--custom js link-->
+<script src="./assets/js/script.js" defer></script>
 
 </html>

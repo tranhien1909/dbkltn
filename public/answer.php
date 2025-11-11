@@ -5,6 +5,7 @@ require_once __DIR__ . '/../lib/kb.php';            // kb_search_chunks_v2
 require_once __DIR__ . '/../lib/openai_client.php'; // openai_post + _extract_text_from_response
 require_once __DIR__ . '/../lib/text_utils.php';
 require_once __DIR__ . '/../lib/kb_qa.php';         // kb_answer_cutoff
+require_once __DIR__ . '/../lib/prompt_template.php';
 
 send_security_headers();
 header('Content-Type: application/json; charset=utf-8');
@@ -32,6 +33,20 @@ try {
             return;
         }
         // nếu không tìm được bằng extractor → tiếp tục RAG chung bên dưới
+    }
+    $isFeeIntent = preg_match('/(l[ệe]\s*ph[íi]|học\s*ph[íi]|ph[íi]\s*(thi|đăng\s*ký|xét|sát\s*hạch))/iu', $q);
+    if ($isFeeIntent) {
+        $fee = kb_answer_fee($pdo, $q, [
+            'trust_min' => 0.75,
+            'days'      => 900,
+        ]);
+        if ($fee) {
+            echo json_encode([
+                'answer'    => $fee['answer'],
+                'citations' => [$fee['citation']],
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
     }
 
     /* =========================
@@ -126,38 +141,77 @@ try {
     }
 
     /* =========================
-     * 3) GỌI GROQ (RAG TÓM TẮT)
-     * ========================= */
-    $model  = envv('OPENAI_MODEL', 'llama-3.1-8b-instant'); // Groq model
-    $sys    = "Bạn là trợ lý chỉ trả lời dựa trên trích dẫn từ kho tài liệu chính thống của IUH. "
-        . "Trả lời ngắn gọn, đúng trọng tâm, nêu mốc thời gian nếu có. Nếu thiếu dữ liệu, hãy nói 'chưa đủ dữ liệu'.";
-    $ctx    = implode("\n---\n", array_slice($contexts, 0, 6));
-    $prompt = "Câu hỏi: {$q}\n\nTài liệu trích lược:\n---\n{$ctx}\n---\n\n"
-        . "Yêu cầu: ghi 3–6 câu, không bịa. Nếu có deadline/số tiền thì nêu rõ.";
+ * 3) GỌI GROQ (RAG TÓM TẮT)
+ * ========================= */
+
+    require_once __DIR__ . '/../lib/prompt_template.php';
+
+    $model = envv('OPENAI_MODEL', 'llama-3.1-8b-instant'); // Groq model
+    $ctx   = implode("\n---\n", array_slice($contexts, 0, 6));
+
+    /* Xác định intent chính */
+    $intent = match (true) {
+        $isCutoffIntent => 'cutoff',
+        $isFeeIntent    => 'fee',
+        preg_match('/(lịch|thời gian|thi|khai giảng|đăng ký học phần)/iu', $q) => 'schedule',
+        preg_match('/(liên hệ|phòng|khoa|số điện thoại|email)/iu', $q)         => 'contact',
+        preg_match('/(tuyển sinh|xét tuyển|hồ sơ)/iu', $q)                    => 'admission',
+        preg_match('/(đăng ký|rút học phần|bảo lưu|điểm rèn luyện)/iu', $q)  => 'academic',
+        default => 'general',
+    };
+
+    if ($intent === 'fee') {
+        // Chuẩn hóa đơn vị tiền
+        $answer = preg_replace('/\b(\d{1,3}(?:[.,]\d{3})+)\s?(?:đ|vnđ|đồng)?\b/iu', '$1 đồng', $answer);
+
+        // Ưu tiên dữ liệu khóa mới nhất nếu có trong context
+        if (preg_match('/khóa\s?21/iu', $ctx) && !preg_match('/khóa\s?21/iu', $answer)) {
+            $answer .= "\n\n*Cập nhật: Theo thông báo gần nhất, sinh viên khóa 21 được miễn lệ phí.*";
+        }
+
+        // Thêm nguồn nếu có URL
+        if (preg_match('/(https?:\/\/[^\s]+)/i', $ctx, $m)) {
+            $answer .= "\n\nNguồn: {$m[1]}";
+        }
+    }
+
+    /* Sinh prompt từ template */
+    $tpl = iuh_prompt_template($intent, $q, $ctx);
 
     $answer = '';
     try {
         $resp = openai_post('/responses', [
             'model' => $model,
             'input' => [
-                ['role' => 'system', 'content' => $sys],
-                ['role' => 'user',   'content' => $prompt],
+                ['role' => 'system', 'content' => $tpl['system']],
+                ['role' => 'user',   'content' => $tpl['user']],
             ],
             'text' => ['format' => ['type' => 'text']],
-            'temperature' => (float)envv('LLM_TEMPERATURE', 0.2),
-            'top_p'       => (float)envv('LLM_TOP_P', 0.3),
+            'temperature' => (float)envv('LLM_TEMPERATURE', 0.3),
+            'top_p'       => (float)envv('LLM_TOP_P', 0.4),
         ]);
+
         $answer = _extract_text_from_response($resp) ?? '';
         $answer = trim($answer);
+
+        // Nếu câu hỏi về CNTT + điểm chuẩn mà chưa nêu chương trình → thêm nhắc nhở
+        if (
+            preg_match('/công nghệ thông tin/iu', $q) &&
+            preg_match('/điểm.*tuyển/iu', $q) &&
+            !preg_match('/chương trình/iu', $answer)
+        ) {
+            $answer .= "\n\n*Lưu ý: Có thể có nhiều chương trình đào tạo với điểm chuẩn khác nhau. Vui lòng kiểm tra nguồn để biết chi tiết.*";
+        }
     } catch (Throwable $e) {
-        // bỏ qua để fallback
+        error_log("[LLM ERROR] " . $e->getMessage());
     }
 
-    // Fallback nếu LLM rỗng: trả 1–2 đoạn context
+    /* Nếu không có kết quả từ Groq, fallback bằng context gốc */
     if ($answer === '') {
         $answer = implode("\n\n", array_slice($contexts, 0, 2));
     }
 
+    /* Trả về JSON */
     echo json_encode([
         'answer'    => $answer,
         'citations' => $citations,

@@ -78,47 +78,42 @@ function kb_insert_chunks(PDO $pdo, int $postId, array $chunks, float $trust = 1
 
 function kb_parse_pdf(string $path): string
 {
-    // 1) Thử Smalot PDF Parser trước
-    if (class_exists(\Smalot\PdfParser\Parser::class)) {
-        try {
-            $parser = new \Smalot\PdfParser\Parser();
-            $pdf    = $parser->parseFile($path);
-            $text   = $pdf->getText();
-            if (is_string($text) && trim($text) !== '') {
-                return $text;
-            }
-        } catch (Throwable $e) {
-            // bỏ qua để fallback
-        }
+    $pagesDir = 'C:/temp_ocr/pdfpages_' . uniqid();
+    if (!is_dir($pagesDir)) {
+        mkdir($pagesDir, 0777, true);
+    }
+    if (!is_dir($pagesDir)) {
+        throw new RuntimeException("Không thể tạo thư mục tạm: $pagesDir");
+    } else {
+        echo "[DEBUG] Đã tạo thư mục: $pagesDir\n";
     }
 
-    // 2) Fallback: pdftotext (Poppler)
-    $binRaw = envv('PDFTOTEXT_BIN', 'pdftotext');
-    $bin    = _env_unquote($binRaw); // gỡ nháy bị người dùng thêm trong .env
-    $tmp    = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('pdftxt_') . '.txt';
+    $pdftoppm = _env_unquote(envv('PDFTOPPM_BIN', 'pdftoppm'));
+    $cmd = _cmd_quote($pdftoppm) . ' -png ' . _cmd_quote(str_replace('\\', '/', $path)) . ' ' . _cmd_quote(str_replace('\\', '/', $pagesDir . '/page'));
 
-    $cmd = _cmd_quote($bin) . ' -enc UTF-8 -layout ' . _cmd_quote($path) . ' ' . _cmd_quote($tmp);
-
-    // debug nếu cần
-    if (filter_var(envv('APP_DEBUG', false), FILTER_VALIDATE_BOOLEAN)) {
-        // ghi ra STDERR để không phá output normal
-        file_put_contents('php://stderr', "[pdftotext] cmd: $cmd\n");
-    }
-
+    echo "[DEBUG CMD] $cmd\n";
     @exec($cmd, $outLines, $code);
 
-    if ($code === 0 && is_file($tmp)) {
-        $txt = @file_get_contents($tmp) ?: '';
-        @unlink($tmp);
+    echo "[DEBUG] Return code = $code\n";
+    echo "[DEBUG] Files sinh ra:\n";
+    print_r(glob($pagesDir . '/*.png'));
 
-        if ($txt !== '' && !mb_check_encoding($txt, 'UTF-8')) {
-            $txt = mb_convert_encoding($txt, 'UTF-8', 'auto');
+    $text = '';
+    foreach (glob($pagesDir . '/page*.png') as $img) {
+        echo "[DEBUG OCR] Đang đọc $img\n";
+        try {
+            $text .= kb_parse_image($img) . "\n";
+        } catch (Throwable $e) {
+            echo "[ERROR OCR] " . $e->getMessage() . "\n";
         }
-        if (trim($txt) !== '') return $txt;
+        @unlink($img);
     }
 
-    throw new RuntimeException('Unable to extract text from PDF (Smalot failed, pdftotext failed).');
+    if (trim($text) !== '') return $text;
+    throw new RuntimeException('Unable to extract text from PDF (Smalot + OCR fallback failed).');
 }
+
+
 
 function kb_parse_docx(string $path): string
 {
@@ -158,4 +153,29 @@ function kb_parse_docx(string $path): string
     }
 
     throw new RuntimeException('Unable to extract text from DOCX (PhpWord & XML fallback failed).');
+}
+
+function kb_parse_image(string $path): string
+{
+    $binRaw = envv('TESSERACT_BIN', 'tesseract');
+    $bin    = _env_unquote($binRaw);
+    $tmpBase = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('ocr_');
+    $tmpTxt  = $tmpBase . '.txt';
+
+    // thêm -l vie nếu cần OCR tiếng Việt
+    $cmd = _cmd_quote($bin) . ' ' . _cmd_quote($path) . ' ' . _cmd_quote($tmpBase) . ' -l vie';
+
+    @exec($cmd, $outLines, $code);
+
+    if ($code === 0 && is_file($tmpTxt)) {
+        $txt = @file_get_contents($tmpTxt) ?: '';
+        @unlink($tmpTxt);
+
+        if ($txt !== '' && !mb_check_encoding($txt, 'UTF-8')) {
+            $txt = mb_convert_encoding($txt, 'UTF-8', 'auto');
+        }
+        if (trim($txt) !== '') return $txt;
+    }
+
+    throw new RuntimeException("Unable to extract text from image via OCR (cmd=$cmd, code=$code)");
 }

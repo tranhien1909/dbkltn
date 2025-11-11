@@ -1,5 +1,5 @@
 <?php
-// CLI: php tools/ingest_docs.php --dir=storage/iuh_docs --source="IUH Official" --trust=1.0 --topic=auto --doc=auto --verbose --force
+// CLI: php tools/ingest_docs.php --dir=storage/iuh_docs --ext=pdf,docx,png,jpg,jpeg,tiff
 if (php_sapi_name() !== 'cli') {
     exit("CLI only\n");
 }
@@ -70,7 +70,15 @@ foreach ($rii as $f) {
     $path = $f->getPathname();
     // Normalize path cho Windows (\ → / chỉ để log; exec vẫn dùng escapeshellarg trong kb_parse_pdf)
     $logPath = str_replace('\\', DIRECTORY_SEPARATOR, $path);
-    $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if ($ext === 'pdf') {
+        $raw = kb_parse_pdf($path);
+    } elseif ($ext === 'docx') {
+        $raw = kb_parse_docx($path);
+    } elseif (in_array($ext, ['png', 'jpg', 'jpeg', 'tiff'])) {
+        $raw = kb_parse_image($path);
+    }
+
     if (!in_array($ext, $allowExt, true)) continue;
 
     echo ">> {$logPath}\n";

@@ -15,7 +15,7 @@ send_security_headers();
     <link rel="shortcut icon" href="./favicon.svg" type="image/svg+xml">
 
     <!--css-->
-    <link rel="stylesheet" href="./assets/css/style.css">
+    <link rel="stylesheet" href="./assets/style.css">
 
 
     <!-- google font link-->
@@ -78,16 +78,16 @@ send_security_headers();
                 <nav class="navbar container" data-navbar>
                     <ul class="navbar-list">
                         <li>
-                            <a href="#" class="navbar-link" data-nav-link>Trang chủ</a>
+                            <a href="/index.php" class="navbar-link" data-nav-link>Trang chủ</a>
                         </li>
                         <li>
-                            <a href="#analyze" class="navbar-link" data-nav-link>Phân tích nhãn rủi ro</a>
+                            <a href="/index.php#analyze" class="navbar-link" data-nav-link>Phân tích nhãn rủi ro</a>
                         </li>
                         <li>
                             <a href="/answer.html" class="navbar-link" data-nav-link>Trả lời IUH</a>
                         </li>
                         <li>
-                            <a href="#contact" class="navbar-link" data-nav-link>Liên hệ</a>
+                            <a href="/index.php#contact" class="navbar-link" data-nav-link>Liên hệ</a>
                         </li>
                     </ul>
                 </nav>
@@ -140,7 +140,7 @@ send_security_headers();
                             cảnh báo tức thì và cung cấp bảng điều khiển trực quan để duyệt/gỡ/chỉnh chỉ với <strong>1 lần bấm</strong>.
                             Mọi thao tác đều được lưu vết, dữ liệu thuộc về bạn, và có thể tùy chỉnh danh sách từ nhạy cảm cho phù hợp bối cảnh giáo dục.
                         </p>
-                        <a class="btn" href="#analyze">Tìm hiểu về iCheck</a>
+                        <a class="btn" href="about.php">Tìm hiểu về iCheck</a>
                     </div>
                 </div>
             </section>
@@ -187,6 +187,249 @@ send_security_headers();
                     to {
                         opacity: 1;
                         transform: translateY(0);
+                    }
+                }
+            </style>
+
+            <section id="features" style="margin-top: 5rem;">
+                <div class="container">
+                    <h3>Tính Năng Nổi Bật</h3>
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">🤖</div>
+                            <h3>AI Thông Minh</h3>
+                            <p>Sử dụng trí tuệ nhân tạo và luật tiếng Việt để phát hiện nội dung tiêu cực với độ chính xác cao</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">⚡</div>
+                            <h3>Thời Gian Thực</h3>
+                            <p>Tự động thu thập và chấm điểm rủi ro theo thời gian thực, cảnh báo tức thì khi phát hiện vấn đề</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">🛡️</div>
+                            <h3>Bảo Vệ Toàn Diện</h3>
+                            <p>Phát hiện tục tĩu, miệt thị, kích động, lừa đảo, đường link độc hại trên fanpage và bình luận</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📊</div>
+                            <h3>Lưu Vết Xử Lý</h3>
+                            <p>Mọi thao tác được lưu vết, dữ liệu thuộc về bạn với 1 lần bấm</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">🔧</div>
+                            <h3>Tùy Chỉnh Linh Hoạt</h3>
+                            <p>Có thể tùy chỉnh danh sách từ nhạy cảm cho phù hợp bối cảnh giáo dục</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">🔗</div>
+                            <h3>API & Webhook</h3>
+                            <p>Tích hợp dễ dàng với hệ thống của bạn thông qua API và Webhook</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="stats" style="margin-top: 5rem;">
+                <div class="container">
+                    <h3>Số Liệu Ấn Tượng</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number">24/7</div>
+                            <div class="stat-label">Hoạt Động Liên Tục</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">365</div>
+                            <div class="stat-label">Ngày Trong Năm</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">99%</div>
+                            <div class="stat-label">Độ Chính Xác</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">
+                                < 1s</div>
+                                    <div class="stat-label">Thời Gian Phản Hồi</div>
+                            </div>
+                        </div>
+                    </div>
+            </section>
+
+            <style>
+                /* Features Grid */
+                .features-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                    gap: 30px;
+                    margin-top: 50px;
+                }
+
+                .feature-card {
+                    background: white;
+                    padding: 30px;
+                    border-radius: 15px;
+                    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+                    transition: transform 0.3s, box-shadow 0.3s;
+                    text-align: center;
+                }
+
+                .feature-card:hover {
+                    transform: translateY(-10px);
+                    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+                }
+
+                .feature-icon {
+                    width: 70px;
+                    height: 70px;
+                    background: linear-gradient(135deg, #2196F3, #0f2557);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 20px;
+                    font-size: 2em;
+                    color: white;
+                }
+
+                .feature-card h3 {
+                    color: #0f2557;
+                    margin-bottom: 15px;
+                    font-size: 1.4em;
+                }
+
+                .feature-card p {
+                    color: #666;
+                    line-height: 1.6;
+                }
+
+                /* Benefits */
+                .benefits-list {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin-top: 40px;
+                }
+
+                .benefit-item {
+                    background: white;
+                    padding: 25px;
+                    border-radius: 10px;
+                    border-left: 4px solid #2196F3;
+                    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+                    transition: transform 0.3s;
+                }
+
+                .benefit-item:hover {
+                    transform: translateX(10px);
+                }
+
+                .benefit-item h4 {
+                    color: #0f2557;
+                    margin-bottom: 10px;
+                    font-size: 1.2em;
+                }
+
+                /* Stats Section */
+                .stats-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 30px;
+                    margin-top: 50px;
+                }
+
+                .stat-card {
+                    text-align: center;
+                    padding: 40px 20px;
+                    background: white;
+                    border-radius: 15px;
+                    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+                }
+
+                .stat-number {
+                    font-size: 3em;
+                    color: #2196F3;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }
+
+                .stat-label {
+                    color: #666;
+                    font-size: 1.1em;
+                }
+
+                /* Animations */
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes fadeInDown {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-30px);
+                    }
+
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes float {
+
+                    0%,
+                    100% {
+                        transform: translateY(0);
+                    }
+
+                    50% {
+                        transform: translateY(-20px);
+                    }
+                }
+
+                /* Responsive */
+                @media (max-width: 768px) {
+                    header h1 {
+                        font-size: 2em;
+                    }
+
+                    header p {
+                        font-size: 1em;
+                    }
+
+                    .about-content {
+                        grid-template-columns: 1fr;
+                    }
+
+                    section h2 {
+                        font-size: 2em;
+                    }
+
+                    nav ul {
+                        flex-direction: column;
+                        align-items: center;
+                    }
+
+                    nav li {
+                        margin: 10px 0;
                     }
                 }
             </style>
@@ -355,6 +598,83 @@ send_security_headers();
     <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
     <script src="/assets/app.js"></script>
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Animate on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.feature-card, .benefit-item, .stat-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+
+        // Counter animation for stats
+        function animateCounter(element) {
+            const target = element.textContent;
+            const isNumber = /^\d+$/.test(target);
+
+            if (isNumber) {
+                const duration = 2000;
+                const start = 0;
+                const end = parseInt(target);
+                const increment = end / (duration / 16);
+                let current = start;
+
+                const timer = setInterval(() => {
+                    current += increment;
+                    if (current >= end) {
+                        element.textContent = end;
+                        clearInterval(timer);
+                    } else {
+                        element.textContent = Math.floor(current);
+                    }
+                }, 16);
+            }
+        }
+
+        const statsObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const number = entry.target.querySelector('.stat-number');
+                    animateCounter(number);
+                    statsObserver.unobserve(entry.target);
+                }
+            });
+        }, {
+            threshold: 0.5
+        });
+
+        document.querySelectorAll('.stat-card').forEach(card => {
+            statsObserver.observe(card);
+        });
+    </script>
 </body>
 
 </html>
