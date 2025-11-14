@@ -147,7 +147,7 @@ function _pre_screen_text($text)
     $heur = 0;
 
     // xúc phạm
-    $bad = '(dm|dmm|dit me|djt|clm|bò|cc|clgt|oc cho|oc lon|lon|ngu lon|mat day|vo hoc|do oc|do dot|do dan|ham|thang|con cho|do ban|do khung|ngu|do ec)';
+    $bad = '(dm|dmm|dit me|djt|clm|bò|cc|clgt|oc cho|oc lon|lon|ngu lon|mat day|vo hoc|do oc|do dot|do dan|ham|thang|con cho|do ban|do khung|ngu|do ec|shit|cuc)';
     if (preg_match_all('/\b' . $bad . '\b/u', $t, $m)) {
         $flags['harassment'] = true;
         $ev['harassment'] = array_values(array_unique($m[0]));
