@@ -81,10 +81,10 @@ send_security_headers();
                             <a href="/index.php" class="navbar-link" data-nav-link>Trang chủ</a>
                         </li>
                         <li>
-                            <a href="/index.php#analyze" class="navbar-link" data-nav-link>Phân tích nhãn rủi ro</a>
+                            <a href="/index.php#analyze" class="navbar-link" data-nav-link>Chấm điểm rủi ro</a>
                         </li>
                         <li>
-                            <a href="/answer.html" class="navbar-link" data-nav-link>Trả lời IUH</a>
+                            <a href="/answer.html" class="navbar-link" data-nav-link>Tìm kiếm thông tin</a>
                         </li>
                         <li>
                             <a href="/index.php#contact" class="navbar-link" data-nav-link>Liên hệ</a>
@@ -551,7 +551,7 @@ send_security_headers();
                         <div class="item-icon">
                             <ion-icon name="call-outline"></ion-icon>
                         </div>
-                        <a href="tel:+0123456789" class="footer-link">+0123456789</a>
+                        <a href="tel:0919354082" class="footer-link">0919354082</a>
                     </li>
                     <li class="footer-item">
                         <div class="item-icon">
