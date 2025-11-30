@@ -283,7 +283,7 @@ try {
         </div>
 
         <!-- Sync Facebook to Knowledge Base -->
-        <!-- <div class="section-card">
+        <div class="section-card">
             <h2>📚 Đồng bộ Facebook vào Knowledge Base</h2>
             <form method="post" action="/admin/action.php" onsubmit="return syncFbToKb(event)">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -303,13 +303,19 @@ try {
                         Giới hạn:
                         <input type="number" name="limit" value="200" min="1" max="500" style="width: 80px;">
                     </label>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: none;">
+                            <input type="checkbox" name="force" value="1" checked>
+                            Buộc cập nhật lại các bài viết đã tồn tại
+                        </label>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="syncFbBtn">
                     <span id="syncFbText">Đồng bộ bài viết Facebook</span>
                 </button>
             </form>
-        </div> -->
+        </div>
 
         <!-- Danh sách bài viết -->
         <h2>📝 Bài viết gần đây</h2>

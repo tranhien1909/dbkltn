@@ -62,6 +62,17 @@ function kb_upsert_post_from_fb(PDO $pdo, array $fb): int
     $stmt->execute([$fb_id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    // === THÊM LOGGING ===  
+    error_log("MD5 DEBUG - fb_post_id: $fb_id");
+    error_log("MD5 DEBUG - new_hash: $hash");
+    if ($row) {
+        error_log("MD5 DEBUG - existing_hash: {$row['md5']}");
+        error_log("MD5 DEBUG - hash_match: " . ($row['md5'] === $hash ? 'YES' : 'NO'));
+    } else {
+        error_log("MD5 DEBUG - no_existing_record");
+    }
+    // === KẾT THÚC LOGGING ===  
+
     if ($row) {
         // cập nhật nếu thay đổi
         if ($row['md5'] !== $hash) {

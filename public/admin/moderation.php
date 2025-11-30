@@ -287,7 +287,7 @@ function risk_level($r)
             <div class="empty">
                 Không có comment nào vượt ngưỡng trong khung thời gian đã chọn.
                 <div class="small" style="margin-top:6px">
-                    Gợi ý: hạ ngưỡng rủi ro, tăng “Trong vòng (phút)” lên <b>1440</b> (1 ngày) hoặc bấm “Quét ngay”.
+                    Gợi ý: hạ ngưỡng rủi ro, tăng “Trong vòng (phút)” lên <b>1440</b> (1 ngày).
                 </div>
             </div>
         <?php else: ?>

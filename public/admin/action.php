@@ -342,6 +342,16 @@ try {
                 }
 
                 echo json_encode($scanRes, JSON_UNESCAPED_UNICODE);
+
+                // Trigger KB sync sau khi scan xong  
+                if ($scanRes['scanned'] > 0) {
+                    $syncCmd = 'php ' . __DIR__ . '/../../tools/sync_fb_to_kb.php --since=30d --limit=200';
+                    exec($syncCmd, $output, $returnCode);
+
+                    // Log kết quả sync (tùy chọn)  
+                    error_log("KB sync triggered: return_code=$returnCode, output=" . implode("\n", $output));
+                }
+
                 break;
             }
 
@@ -617,11 +627,63 @@ try {
 
         case 'sync_fb_to_kb': {
                 require_once __DIR__ . '/../../lib/kb_ingest.php';
+                // require_once __DIR__ . '/../../lib/kb.php';
+
+                if (!function_exists('kb_upsert_post_from_fb')) {
+                    function kb_upsert_post_from_fb(PDO $pdo, array $fb): int
+                    {
+                        $sourceName = envv('KB_SOURCE_NAME', 'IUHDemo');
+                        $trust = (float) envv('KB_SOURCE_TRUST', '1.0');
+
+                        $sourceId = kb_ensure_source($pdo, $sourceName, 'facebook', $trust, null);
+
+                        $fb_id = $fb['id'] ?? null;
+                        $msg = trim($fb['message'] ?? '');
+                        $url = $fb['permalink_url'] ?? null;
+                        $ct = !empty($fb['created_time']) ? date('Y-m-d H:i:s', strtotime($fb['created_time'])) : null;
+                        $ut = !empty($fb['updated_time']) ? date('Y-m-d H:i:s', strtotime($fb['updated_time'])) : $ct;
+
+                        if (!$fb_id || ($msg === '' && !$url)) return 0;
+
+                        $clean = tu_clean_text($msg);
+                        $hash = md5($clean);
+
+                        $stmt = $pdo->prepare("SELECT id, md5 FROM kb_posts WHERE fb_post_id=? LIMIT 1");
+                        $stmt->execute([$fb_id]);
+                        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($row) {
+                            if ($row['md5'] !== $hash) {
+                                $upd = $pdo->prepare("UPDATE kb_posts  
+                                          SET message_raw=?, message_clean=?, updated_time=?, trust_level=?, permalink_url=?, md5=?  
+                                          WHERE id=?");
+                                $upd->execute([$msg, $clean, $ut, $trust, $url, $hash, $row['id']]);
+                                $postId = (int)$row['id'];
+
+                                $pdo->prepare("DELETE FROM kb_chunks WHERE post_id=?")->execute([$postId]);
+                                kb_insert_chunks($pdo, $postId, [$msg], $trust);
+                            } else {
+                                $postId = (int)$row['id'];
+                            }
+                            return $postId;
+                        }
+
+                        $ins = $pdo->prepare("INSERT INTO kb_posts(source_id, fb_post_id, title, message_raw, message_clean, permalink_url,  
+                                created_time, updated_time, trust_level, md5)  
+                                VALUES (?,?,?,?,?,?,?,?,?,?)");
+                        $ins->execute([$sourceId, $fb_id, null, $msg, $clean, $url, $ct, $ut, $trust, $hash]);
+                        $postId = (int)$pdo->lastInsertId();
+
+                        kb_insert_chunks($pdo, $postId, [$msg], $trust);
+                        return $postId;
+                    }
+                }
 
                 $sinceArg = $_POST['since'] ?? '30d';
                 $limit = (int)($_POST['limit'] ?? 200);
+                $force = !empty($_POST['force']);
 
-                // Parse since argument  
+                // Parse since argument    
                 $mult = ['m' => 60, 'h' => 3600, 'd' => 86400];
                 $unit = substr($sinceArg, -1);
                 $num = (int)substr($sinceArg, 0, -1);
@@ -672,13 +734,33 @@ try {
                 foreach ($collected as $p) {
                     try {
                         $full = fb_api('/' . $p['id'], ['fields' => $fields]);
+
+                        if ($force) {
+                            error_log("FORCE DELETE - fb_post_id: {$p['id']}");
+
+                            // Xóa chunks trước    
+                            $delChunks = $pdo->prepare("DELETE FROM kb_chunks WHERE post_id IN (SELECT id FROM kb_posts WHERE fb_post_id=?)");
+                            $delChunks->execute([$p['id']]);
+                            $chunksDeleted = $delChunks->rowCount();
+
+                            // Xóa post    
+                            $del = $pdo->prepare("DELETE FROM kb_posts WHERE fb_post_id=?");
+                            $del->execute([$p['id']]);
+                            $postsDeleted = $del->rowCount();
+
+                            error_log("DELETED - chunks: $chunksDeleted, posts: $postsDeleted");
+                        }
+
                         $id = kb_upsert_post_from_fb($pdo, $full);
+                        error_log("UPSERT RESULT - fb_post_id: {$p['id']}, post_id: $id");
+
                         if ($id) {
                             $ok++;
                         } else {
                             $skip++;
                         }
                     } catch (Throwable $e) {
+                        error_log("ERROR - fb_post_id: {$p['id']}, msg: " . $e->getMessage());
                         $skip++;
                     }
                 }
@@ -687,11 +769,11 @@ try {
                     'ok' => true,
                     'fetched' => count($collected),
                     'inserted' => $ok,
-                    'skipped' => $skip
+                    'skipped' => $skip,
+                    'forced' => $force
                 ], JSON_UNESCAPED_UNICODE);
                 break;
             }
-
 
         default:
             throw new Exception('Hành động không hợp lệ');
